@@ -21,11 +21,15 @@ from functions.run_python import run_python_file
 # print(write_file("calculator", "tmp/temp.txt", "this should not be allowed")) # print result - should return error string
 
 # Test cases for run_python_file function
+# print(run_python_file("calculator", "main.py"))
+# print(run_python_file("calculator", "tests.py"))
+# print(run_python_file("calculator", "../main.py")) # should return an error string
+# print(run_python_file("calculator", "nonexistent.py")) # should return an error string
+
+# Test cases for function declaration
 print("----------Test Case 1----------")
-print(run_python_file("calculator", "main.py"))
+print(get_files_info({'directory': '.'}))
 print("----------Test Case 2----------")
-print(run_python_file("calculator", "tests.py"))
-print("----------Test Case 3----------")
-print(run_python_file("calculator", "../main.py")) # should return an error string
-print("----------Test Case 4----------")
-print(run_python_file("calculator", "nonexistent.py")) # should return an error string
+print(get_files_info({'directory': 'pkg'}))
+# print("----------Test Case 3----------")
+# print("----------Test Case 4----------")
