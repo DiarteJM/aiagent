@@ -29,7 +29,7 @@ messages = [
   types.Content(role="user", parts=[types.Part(text=user_prompt)]),
 ]
 
-# Create the declaration for the schema
+# Create the declaration for the schema for get_files_info function
 schema_get_files_info = types.FunctionDeclaration(
     name="get_files_info",
     description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
@@ -50,20 +50,42 @@ available_functions = types.Tool(
     ]
 )
 
+system_prompt = """
+You are a helpful AI coding agent.
+
+When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
+
+- List files and directories
+
+All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
+"""
+
 # Generate content using the Gemini model
 response = client.models.generate_content(
     model="gemini-2.0-flash-001", contents=messages, config=types.GenerateContentConfig(
-    tools=[available_functions], system_instruction=system_prompt
-))
+    tools=[available_functions], system_instruction=system_prompt)
+    )
 
 answer = response.text
-function_call_part = response.function_call
+# print(f"Response: {answer}")
+function_call = response.function_calls
+# print(f"Function Calls: {response.function_calls}")
 
-if function_call_part is not None:
-  # if function called, then print the function name and arguments, else print the text as normal
-  print(f"Calling function: {function_call_part.name}({function_call_part.args})")
-# Print the response text
-print(f"Response: {answer}")
+if function_call and len(function_call) > 0:
+    fc = function_call[0]
+    function_name = fc.name
+    function_args = fc.args
+    print(f"Calling function: {function_name}({function_args})")
+    if function_name != "get_files_info":
+        print(f"Error: Function '{function_name}' is not supported.")
+        sys.exit(1)
+    else:
+        from functions.get_files_info import get_files_info
+        result = get_files_info(working_directory=os.getcwd(), directory=function_args.get("directory", "."))
+        print(result)
+else:
+    print(answer)
+
 
 # Print the token usage metadata
 prompt_token_usage = response.usage_metadata.prompt_token_count
