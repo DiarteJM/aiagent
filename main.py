@@ -3,19 +3,13 @@ import sys
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from functions.get_files_info import get_files_info
+from functions.get_file_content import get_file_content
+from functions.run_python import run_python_file
+from functions.write_file import write_file
 
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
-system_prompt = """
-You are a helpful AI coding agent.
-
-When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
-
-- List files and directories
-
-All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
-"""
-  
 client = genai.Client(api_key=api_key)
 
 if len(sys.argv) < 2:
@@ -26,7 +20,7 @@ else:
 
 # Create a new list to store messages and prompts
 messages = [
-  types.Content(role="user", parts=[types.Part(text=user_prompt)]),
+    types.Content(role="user", parts=[types.Part(text=user_prompt)]),
 ]
 
 # Create the declaration for the schema for the functions
@@ -89,14 +83,6 @@ schema_write_file = types.FunctionDeclaration(
     ),
 )
 
-available_functions = types.Tool(
-    function_declarations=[
-        schema_get_files_info,
-        schema_get_file_content,
-        schema_run_python_file,
-        schema_write_file
-    ]
-)
 
 system_prompt = """
 You are a helpful AI coding agent.
@@ -111,45 +97,76 @@ When a user asks a question or makes a request, make a function call plan. You c
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
 """
 
+available_functions = types.Tool(
+    function_declarations=[
+        schema_get_files_info,
+        schema_get_file_content,
+        schema_run_python_file,
+        schema_write_file
+    ]
+)
+
 # Generate content using the Gemini model
 response = client.models.generate_content(
     model="gemini-2.0-flash-001", contents=messages, config=types.GenerateContentConfig(
-    tools=[available_functions], system_instruction=system_prompt)
-    )
+        tools=[available_functions], system_instruction=[system_prompt])
+)
 
+# Response handling
 answer = response.text
-# print(f"Response: {answer}")
 function_calls = response.function_calls
-# print(f"Function Calls: {response.function_calls}")
+function_call_part = response.function_calls[0]
 
-if function_calls and len(function_calls) > 0:
-    fc = function_calls[0]
-    function_name = fc.name
-    function_args = fc.args
-    print(f"Calling function: {function_name}({function_args})")
+# Set up the function to call functions based on prompts
 
-    if function_name == "get_files_info":
-        from functions.get_files_info import get_files_info
-        result = get_files_info(working_directory=os.getcwd(), directory=function_args.get("directory", "."))
-        print(result)
-    elif function_name == "get_file_content":
-        from functions.get_file_content import get_file_content
-        result = get_file_content(working_directory=os.getcwd(), file_path=function_args.get("file_path"))
-        print(result)
-    elif function_name == "run_python_file":
-        from functions.run_python import run_python_file
-        result = run_python_file(working_directory=os.getcwd(), file_path=function_args.get("file_path"))
-        print(result)
-    elif function_name == "write_file":
-        from functions.write_file import write_file
-        result = write_file(working_directory=os.getcwd(), file_path=function_args.get("file_path"), content=function_args.get("content", "."))
-        print(result)
-    else:
-        if function_name not in function_calls:
-          print(f"Error: Function '{function_name}' is not supported.")
-          sys.exit(1)
-else:
-    print(answer)
+def call_function(function_call_part, verbose=False):
+    # 1. Check if function exists
+    function_dict = {
+        "get_files_info": get_files_info,
+        "get_file_content": get_file_content,
+        "run_python_file": run_python_file,
+        "write_file": write_file
+    }
+
+    if function_call_part.name not in function_dict:
+        return types.Content(
+            role="tool",
+            parts=[types.Part.from_function_response(
+                name=function_call_part.name,
+                response={
+                    "error": f"Unknown function: {function_call_part.name}"}
+            )
+            ],
+        )
+        
+    if response.function_calls and len(response.function_calls) > 0:
+        function_call_result = call_function(function_call_part, verbose=...)
+        print("->", function_call_result.parts.function_response.response["result"])
+        print(function_call_result.parts)
+
+    # 2. Prepare arguments for function call
+    function_object = function_dict[function_call_part.name]
+    function_args = dict(function_call_part.args)
+    function_args["working_directory"] = './calculator'
+    function_result = function_object(**function_args)
+    if "--verbose" in sys.argv[2:]:
+        print(
+            f"Calling function: {function_call_part.name}({function_call_part.args})")
+    print(f"Calling function: {function_call_part.name}")
+
+    # 3. Call function and gather result
+    try:
+        function_result = function_dict[function_call_part.name](**function_args)
+    except Exception as e:
+        function_result = f"Error: {e}"
+    # 4. Construct Content object with the response
+    return types.Content(
+        role="tool",
+        parts=[types.Part.from_function_response(
+            name=function_call_part.name,
+            response={"result": function_result}
+        )],
+    )
 
 
 # Print the token usage metadata
@@ -157,10 +174,9 @@ prompt_token_usage = response.usage_metadata.prompt_token_count
 response_token_usage = response.usage_metadata.candidates_token_count
 
 if sys.argv[2:].__contains__('--verbose'):
-  user_prompt = user_prompt.replace(" --verbose", "")
-  print(f"User prompt: '{user_prompt}'")
-  print(f"Prompt tokens: {prompt_token_usage}")
-  print(f"Response tokens: {response_token_usage}")
+    user_prompt = user_prompt.replace(" --verbose", "")
+    print(f"User prompt: '{user_prompt}'")
+    print(f"Prompt tokens: {prompt_token_usage}")
+    print(f"Response tokens: {response_token_usage}")
 else:
-  print(f"{answer}")
-
+    print(f"{answer}")

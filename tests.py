@@ -2,6 +2,7 @@ from functions.get_files_info import get_files_info
 from functions.get_file_content import get_file_content
 from functions.write_file import write_file
 from functions.run_python import run_python_file
+from main import call_function
 
 # Test cases for get_files_info function
 # print(get_files_info("calculator", ".")) # print result to console
@@ -26,10 +27,9 @@ from functions.run_python import run_python_file
 # print(run_python_file("calculator", "../main.py")) # should return an error string
 # print(run_python_file("calculator", "nonexistent.py")) # should return an error string
 
-# Test cases for function declaration
-print("----------Test Case 1----------")
-print(get_files_info({'directory': '.'}))
-print("----------Test Case 2----------")
-print(get_files_info({'directory': 'pkg'}))
-# print("----------Test Case 3----------")
-# print("----------Test Case 4----------")
+# Test cases for call_function function
+# print('python3 main.py "run tests.py" --verbose')
+# print('python3 main.py "get the contents of lorem.txt" --verbose')
+# print('python3 main.py "create a new README.md file with the contents '# calculator'" --verbose')
+# print('python3 main.py "what are the files in the root?" --verbose')
+

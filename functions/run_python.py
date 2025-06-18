@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 
+
 def run_python_file(working_directory, file_path):
     """
     - Runs a Python file at the specified path within the working directory.
@@ -21,11 +22,12 @@ def run_python_file(working_directory, file_path):
       - if no output produced, return "No output produced."
     - Catch any exceptions during execution and return an error string - must start with "Error: "
     """
-    
+
     try:
         current_working_directory = os.path.abspath(working_directory)
-        absolute_target_path = os.path.abspath(os.path.join(current_working_directory, file_path))
-        
+        absolute_target_path = os.path.abspath(
+            os.path.join(current_working_directory, file_path))
+
         if not absolute_target_path.startswith(current_working_directory):
             return f'Error: Cannot execute "{file_path}" as it is outside the permitted working directory'
         if not os.path.exists(absolute_target_path):
@@ -34,13 +36,13 @@ def run_python_file(working_directory, file_path):
             return f'Error: "{file_path}" is not a Python file.'
 
         result = subprocess.run(
-                [sys.executable, absolute_target_path],
+            [sys.executable, absolute_target_path],
             capture_output=True,
             text=True,
             cwd=current_working_directory,
             timeout=30
         )
-        
+
         output = []
         if result.stdout:
             output.append(f"STDOUT:\n{result.stdout.strip()}")
@@ -48,8 +50,8 @@ def run_python_file(working_directory, file_path):
             output.append(f"STDERR:\n{result.stderr.strip()}")
         if result.returncode != 0:
             output.append(f"Process exited with code: {result.returncode}")
-        
+
         return "\n".join(output) if output else "No output produced."
-    
+
     except Exception as e:
         return f"Error: executing Python file: {e}"
