@@ -26,6 +26,10 @@ def generate_content(client, messages, verbose):
         print("Prompt tokens:", response.usage_metadata.prompt_token_count)
         print("Response tokens:", response.usage_metadata.candidates_token_count)
 
+    if response.candidates:
+        for candidate in response.candidates:
+            messages.append(candidate.content)
+
     if not function_calls:
         return f"Response: {answer}"
 
@@ -42,6 +46,13 @@ def generate_content(client, messages, verbose):
     if not call_responses:
         raise Exception(
             "Error: no function responses generated. Please check your function calls or try again.")
+        
+    messages.append(
+        types.Content(
+            role="tool",
+            parts=call_responses,
+        )
+    )
 
 
 def main():
@@ -50,6 +61,7 @@ def main():
     args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
 
     if not args:
+        print("AI Code Assistant")
         print('\nUsage: python3 main.py "<prompt>" [--verbose]')
         print('Example: python3 main.py "What is the meaning of life?" --verbose')
         sys.exit(1)
@@ -69,30 +81,35 @@ def main():
 
     generate_content(client, messages, verbose)
 
-    agent_count = 0
-    # while agent_count <= 20:
-    response = generate_content(client, messages, verbose)
-    candidates = response.candidates 
-    print(f"Candidate Type: {type(candidates)}")
+    prompt_counter = 0
+    while True:
+        prompt_counter += 1
 
-        # check the .candidates property of the response - should be a list of response variations
-    # if candidates is None:
-    #     print("No candidates found. Exiting.")
-    #     break
-        # iterate through the candidates and print their text
-        # for candidate in candidates:
-        #     if verbose:
-        #         print(f"Candidate {agent_count + 1}: {candidate.text}")
-        #     messages.append(types.Content(role="tool", parts=[types.Part(text=candidate.text)]))
-            # if verbose, print the candidate text
-            # append the candidate text to the messages list
-            # this is to ensure that the next iteration of generate_content has the full conversation history
+        if prompt_counter > 20:
+            print(
+                f"Stopping after {prompt_counter} prompts to avoid infinite loop.")
+            sys.exit(1)
+        try:
+            response = generate_content(client, messages, verbose)
 
+            if response:
+                print("Response:")
+                print(response, "\n")
+                break
+        except BaseException as e:
+            print(
+                f"Error in generating content for prompt {prompt_counter}: {e}")
+            # Continue to next prompt
 
-        # agent_count += 1
-        # after each function call, append the returned types.Content to the messages list
-        # if function called, should iterate again (unless max iterations is reached) - else print the final response (.text property) and break out of loop
-        # ensure with each call to run the generate_content function, the messages list has to be passed in so LLM does the next step
+        user_input = input(f"Prompt {prompt_counter}: ")
+        if user_input.lower() in ["exit", "quit"]:
+            print("Exiting the AI Code Assistant.")
+            break
+
+        messages.append(types.Content(
+            role="user", parts=[types.Part(text=user_input)]))
+        response = generate_content(client, messages, verbose)
+        print(response)
 
 
 if __name__ == "__main__":
