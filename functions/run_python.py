@@ -1,57 +1,57 @@
 import os
 import subprocess
-import sys
+from google.genai import types
 
+schema_run_python_file = types.FunctionDeclaration(
+    name="run_python_file",
+    description="Executes a specified Python file, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The path to the Python file to execute, relative to the working directory.",
+            ),
+        },
+    ),
+)
 
-def run_python_file(working_directory, file_path):
-    """
-    - Runs a Python file at the specified path within the working directory.
-      - Only allows LLM to run code in specified directory.
-      - 30-second timeout to prevent it from running indefinitely.
-    - If file_path is outside the working directory, return an error string
-    - If file_path does not exist, return an error string.
-    - if file_path does not end with .py, return an error string.
-    - Use subprocess.run to execute the file.
-      - set timeout to 30 seconds.
-      - capture both stdout and stderr.
-      - set working directory properly.
-    - Format the output to include the following:
-      - stdout: the standard output of the script - prefixed with "STDOUT:"
-      - stderr: the standard error of the script - prefixed with "STDERR:"
-      - if process exits with non-zero code, include "Process exited with code: X"
-      - if no output produced, return "No output produced."
-    - Catch any exceptions during execution and return an error string - must start with "Error: "
-    """
+def run_python_file(working_directory, file_path, args=None):
+    full_working_directory = os.path.abspath(working_directory)
+    full_file_path = os.path.abspath(
+        os.path.join(full_working_directory, file_path))
+
+    print(f" Working Directory -> {full_working_directory}")
+    print(f" File Path -> {full_file_path}")
+
+    if not full_file_path.startswith(full_working_directory):
+        return f'Error: Cannot execute "{file_path}" as it is outside the permitted working directory'
+    if not os.path.exists(full_file_path):
+        return f'Error: File "{file_path}" not found.'
+    if not full_file_path.endswith('.py'):
+        return f'Error: "{file_path}" is not a Python file.'
+
+    commands = ["python3", full_file_path]
+    if args:
+        commands.extend(args)
 
     try:
-        current_working_directory = os.path.abspath(working_directory)
-        absolute_target_path = os.path.abspath(
-            os.path.join(current_working_directory, file_path))
-
-        if not absolute_target_path.startswith(current_working_directory):
-            return f'Error: Cannot execute "{file_path}" as it is outside the permitted working directory'
-        if not os.path.exists(absolute_target_path):
-            return f'Error: File "{file_path}" not found.'
-        if not absolute_target_path.endswith('.py'):
-            return f'Error: "{file_path}" is not a Python file.'
-
         result = subprocess.run(
-            [sys.executable, absolute_target_path],
+            commands,
             capture_output=True,
             text=True,
-            cwd=current_working_directory,
+            cwd=full_working_directory,
             timeout=30
         )
-
         output = []
         if result.stdout:
-            output.append(f"STDOUT:\n{result.stdout.strip()}")
+            output.append(f"STDOUT:\n{result.stdout}")
         if result.stderr:
-            output.append(f"STDERR:\n{result.stderr.strip()}")
+            output.append(f"STDERR:\n{result.stderr}")
+
         if result.returncode != 0:
             output.append(f"Process exited with code: {result.returncode}")
 
         return "\n".join(output) if output else "No output produced."
-
     except Exception as e:
         return f"Error: executing Python file: {e}"
