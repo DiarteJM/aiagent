@@ -3,56 +3,9 @@ import os
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
-from system_prompt import system_prompt
-from functions.call_function import available_functions, call_function
-
-
-def generate_content(client, messages, verbose):
-    # Generate content using the Gemini model
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents=messages,
-        config=types.GenerateContentConfig(
-            tools=[available_functions],
-            system_instruction=[system_prompt]
-        ),
-    )
-
-    # Response handling
-    answer = response.text
-    function_calls = response.function_calls
-
-    if verbose:
-        print("Prompt tokens:", response.usage_metadata.prompt_token_count)
-        print("Response tokens:", response.usage_metadata.candidates_token_count)
-
-    if response.candidates:
-        for candidate in response.candidates:
-            messages.append(candidate.content)
-
-    if not function_calls:
-        return f"Response: {answer}"
-
-    call_responses = []
-    for function_call_part in function_calls:
-        function_call_result = call_function(function_call_part, verbose)
-        if (not function_call_result.parts or not function_call_result.parts[0].function_response):
-            raise Exception("Error: You have an empty call result")
-        if verbose:
-            print(
-                f"-> {function_call_result.parts[0].function_response.response}")
-        return call_responses.append(function_call_result.parts[0])
-
-    if not call_responses:
-        raise Exception(
-            "Error: no function responses generated. Please check your function calls or try again.")
-        
-    messages.append(
-        types.Content(
-            role="tool",
-            parts=call_responses,
-        )
-    )
+from prompts import system_prompt
+from call_function import available_functions, call_function
+from config import MAX_ITERATIONS
 
 
 def main():
@@ -79,37 +32,74 @@ def main():
         types.Content(role="user", parts=[types.Part(text=user_prompt)]),
     ]
 
-    generate_content(client, messages, verbose)
-
-    prompt_counter = 0
+    counter = 0
     while True:
-        prompt_counter += 1
+        counter += 1
 
-        if prompt_counter > 20:
+        if counter > MAX_ITERATIONS:
             print(
-                f"Stopping after {prompt_counter} prompts to avoid infinite loop.")
+                f"Maximum number of iterations ({MAX_ITERATIONS}) reached. Exiting...")
             sys.exit(1)
+
+        final_response = generate_content(client, messages, verbose)
         try:
-            response = generate_content(client, messages, verbose)
-
-            if response:
-                print("Response:")
-                print(response, "\n")
+            if final_response:
+                print("Final response:")
+                print(final_response, "\n")
                 break
-        except BaseException as e:
+        except Exception as e:
             print(
-                f"Error in generating content for prompt {prompt_counter}: {e}")
-            # Continue to next prompt
+                f"Error in generating content: {e}")
 
-        user_input = input(f"Prompt {prompt_counter}: ")
-        if user_input.lower() in ["exit", "quit"]:
-            print("Exiting the AI Code Assistant.")
-            break
 
-        messages.append(types.Content(
-            role="user", parts=[types.Part(text=user_input)]))
-        response = generate_content(client, messages, verbose)
-        print(response)
+def generate_content(client, messages, verbose):
+    # Generate content using the Gemini model
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents=messages,
+        config=types.GenerateContentConfig(
+            tools=[available_functions],
+            system_instruction=[system_prompt]
+        ),
+    )
+
+    # Response handling
+    answer_text = response.text
+    function_calls = response.function_calls
+    candidates = response.candidates
+
+    if verbose:
+        print("Prompt tokens:", response.usage_metadata.prompt_token_count)
+        print("Response tokens:", response.usage_metadata.candidates_token_count)
+
+    if candidates:
+        for candidate in candidates:
+            candidate_content = candidate.content
+            messages.append(candidate_content)
+
+    if not function_calls:
+        return answer_text
+
+    call_responses = []
+    for function_call_part in function_calls:
+        function_call_result = call_function(function_call_part, verbose)
+        if (
+            not function_call_result.parts
+            or not function_call_result.parts[0].function_response
+        ):
+            raise Exception("Error: empty function call result returned")
+        if verbose:
+            print(
+                f"-> {function_call_result.parts[0].function_response.response}")
+        return call_responses.append(function_call_result.parts[0])
+
+    if not call_responses:
+        raise Exception("Error: no function responses generated")
+
+    messages.append(types.Content(
+        role="tool",
+        parts=call_responses
+    ))
 
 
 if __name__ == "__main__":

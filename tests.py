@@ -1,8 +1,8 @@
-from functions.get_files_info import get_files_info
-from functions.get_file_content import get_file_content
-from functions.write_file import write_file
-from functions.run_python import run_python_file
-from main import call_function
+# from functions.get_files_info import get_files_info
+# from functions.get_file_content import get_file_content
+# from functions.write_file import write_file
+# from functions.run_python import run_python_file
+# from main import call_function
 
 # Test cases for get_files_info function
 # print(get_files_info("calculator", ".")) # print result to console
@@ -32,4 +32,24 @@ from main import call_function
 # print('python3 main.py "get the contents of lorem.txt" --verbose')
 # print('python3 main.py "create a new README.md file with the contents '# calculator'" --verbose')
 # print('python3 main.py "what are the files in the root?" --verbose')
+
+from functions.run_python import run_python_file
+
+
+def test():
+    result = run_python_file("calculator", "main.py")
+    print(result)
+
+    result = run_python_file("calculator", "tests.py")
+    print(result)
+
+    result = run_python_file("calculator", "../main.py")
+    print(result)
+
+    result = run_python_file("calculator", "nonexistent.py")
+    print(result)
+
+
+if __name__ == "__main__":
+    test()
 
